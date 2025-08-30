@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>lotoLM — One-Class (TensorFlow.js)</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%230ea5e9'/%3E%3Ctext x='50%25' y='54%25' font-size='32' text-anchor='middle' fill='white' font-family='Arial'%3ELM%3C/text%3E%3C/svg%3E"/>
+<style>
+  :root { --bg:#0b1220; --fg:#e6eefb; --muted:#97a3b6; --brand:#0ea5e9; }
+  *{box-sizing:border-box} body{margin:0;font-family:system-ui,Segoe UI,Roboto,Arial;background:var(--bg);color:var(--fg);}
+  header{padding:20px 24px;border-bottom:1px solid #1d2a44;background:#0e1628;position:sticky;top:0;z-index:10}
+  h1{margin:0;font-size:20px;display:flex;gap:10px;align-items:center}
+  .wrap{max-width:1100px;margin:20px auto;padding:0 16px;display:grid;gap:16px}
+  .card{background:#0e1628;border:1px solid #1d2a44;border-radius:14px;padding:16px}
+  .row{display:grid;gap:12px}
+  @media (min-width:900px){ .col3{grid-template-columns:1fr 1fr 1fr} }
+  button{cursor:pointer;border:0;background:var(--brand);color:#00131f;padding:10px 14px;border-radius:10px;font-weight:600}
+  input,textarea{width:100%;background:#0b1220;color:var(--fg);border:1px solid #1d2a44;border-radius:10px;padding:10px}
+  code{background:#0b1220;border:1px solid #1d2a44;border-radius:8px;padding:2px 6px}
+  .mono{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace}
+  .small{font-size:12px;color:var(--muted)}
+  .grid2{display:grid;gap:10px;grid-template-columns:1fr 1fr}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
+</head>
+<body>
+<header><h1>🧠 lotoLM — Autoencoder One-Class (treina só com dados reais)</h1></header>
+<main class="wrap">
+
+  <section class="card">
+    <h2>1) Cole os concursos reais</h2>
+    <p class="small">Uma linha por concurso, 15 números (1–25) separados por espaço. Ex.: <code>01 02 03 05 07 09 10 12 13 15 18 20 21 23 25</code></p>
+    <textarea id="hist" rows="12" placeholder="Cole aqui..."></textarea>
+    <div class="grid2">
+      <div><button id="btnSeed">Carregar exemplo</button></div>
+      <div style="text-align:right"><button id="btnParse">Validar & Preparar</button></div>
+    </div>
+    <div id="info" class="small mono"></div>
+  </section>
+
+  <section class="card">
+    <h2>2) Treinar autoencoder</h2>
+    <div class="row col3">
+      <div>
+        <label>Épocas:</label>
+        <input id="epochs" type="number" value="40" min="5" max="500">
+      </div>
+      <div>
+        <label>Batch size:</label>
+        <input id="batch" type="number" value="64" min="16" max="1024">
+      </div>
+      <div>
+        <label>Dimensão latente:</label>
+        <input id="latent" type="number" value="6" min="2" max="20">
+      </div>
+    </div>
+    <div class="grid2">
+      <button id="btnTrain">Treinar</button>
+      <div style="text-align:right"><button id="btnThreshold">Calibrar limiar (p90)</button></div>
+    </div>
+    <div id="trainLog" class="small mono"></div>
+  </section>
+
+  <section class="card">
+    <h2>3) Pontuar combinação</h2>
+    <input id="testInput" placeholder="Ex.: 01 02 03 05 07 09 10 12 13 15 18 20 21 23 25">
+    <div class="grid2" style="margin-top:8px">
+      <button id="btnScore">Pontuar</button>
+      <div style="text-align:right"><span id="scoreOut" class="mono"></span></div>
+    </div>
+    <p class="small">O <b>erro de reconstrução</b> (MSE) indica o quão “parecida” a combinação é com o histórico. <b>Menor = mais parecido</b>. Não é previsão.</p>
+  </section>
+
+</main>
+
+<script>
+// ======= Parsing =======
+const histTA = document.getElementById('hist');
+const btnSeed = document.getElementById('btnSeed');
+const btnParse = document.getElementById('btnParse');
+const info = document.getElementById('info');
+const epochsEl = document.getElementById('epochs');
+const batchEl = document.getElementById('batch');
+const latentEl = document.getElementById('latent');
+const btnTrain = document.getElementById('btnTrain');
+const btnThreshold = document.getElementById('btnThreshold');
+const trainLog = document.getElementById('trainLog');
+const testInput = document.getElementById('testInput');
+const btnScore = document.getElementById('btnScore');
+const scoreOut = document.getElementById('scoreOut');
+
+let X = null;        // tensor  [N,25]
+let model = null;    // autoencoder
+let th = null;       // threshold (p90)
+
+const sample = [
+"01 02 03 05 07 09 10 12 13 15 18 20 21 23 25",
+"01 03 04 05 06 08 09 10 11 12 14 16 17 22 24",
+"02 03 05 07 08 09 11 12 14 15 17 18 19 20 25",
+"01 04 06 07 08 10 12 13 15 16 18 19 21 22 24",
+"02 05 06 07 08 09 11 13 14 15 16 18 20 22 25",
+"03 04 05 08 09 10 12 14 15 16 17 19 21 23 24",
+"01 02 04 07 08 11 12 13 14 16 18 20 21 22 25",
+"01 03 05 06 08 09 10 12 14 15 17 19 20 23 25",
+"02 04 05 07 09 11 12 14 15 16 18 19 21 22 24",
+"01 02 03 04 06 07 10 12 13 15 17 18 20 22 25"
+].join("\\n");
+
+btnSeed.onclick = () => { histTA.value = sample; };
+
+function parseLine(s){
+  const parts = s.trim().split(/\\s+/).filter(Boolean);
+  if(parts.length!==15) return null;
+  const nums = parts.map(x=>parseInt(x,10)).filter(n=>Number.isInteger(n)&&n>=1&&n<=25);
+  if(nums.length!==15) return null;
+  const set = Array.from(new Set(nums)).sort((a,b)=>a-b);
+  return set.length===15 ? set : null;
+}
+function comboToVec(c){
+  const v = new Array(25).fill(0);
+  for(const n of c) v[n-1]=1;
+  return v;
+}
+
+btnParse.onclick = () => {
+  const lines = histTA.value.split(/\\r?\\n/).map(s=>s.trim()).filter(Boolean);
+  const combos = [];
+  for(const ln of lines){
+    const c = parseLine(ln);
+    if(!c){ alert("Linha inválida: "+ln); return; }
+    combos.push(c);
+  }
+  if(combos.length<20){
+    alert("Adicione pelo menos 20 concursos reais para um treino estável.");
+    return;
+  }
+  const mat = combos.map(comboToVec);
+  if(X) X.dispose();
+  X = tf.tensor2d(mat); // [N,25]
+  info.textContent = "Concursos carregados: "+combos.length+"  |  Tensor: "+X.shape;
+  trainLog.textContent = "";
+  scoreOut.textContent = "";
+};
+
+function buildAutoencoder(latent=6){
+  const inp = tf.input({shape:[25]});
+  let x = tf.layers.dense({units:16, activation:'relu'}).apply(inp);
+  x = tf.layers.dense({units:latent, activation:'relu'}).apply(x);
+  x = tf.layers.dense({units:16, activation:'relu'}).apply(x);
+  const out = tf.layers.dense({units:25, activation:'sigmoid'}).apply(x);
+  const m = tf.model({inputs:inp, outputs:out});
+  m.compile({optimizer: tf.train.adam(0.01), loss:'meanSquaredError'});
+  return m;
+}
+
+btnTrain.onclick = async ()=>{
+  try{
+    if(!X){ alert("Carregue concursos em '1)'."); return; }
+    const epochs = Math.max(5, Math.min(500, parseInt(epochsEl.value,10)||40));
+    const batch  = Math.max(16, Math.min(1024, parseInt(batchEl.value,10)||64));
+    const latent = Math.max(2, Math.min(20, parseInt(latentEl.value,10)||6));
+    if(model) { model.dispose(); model=null; }
+    model = buildAutoencoder(latent);
+    trainLog.textContent = "Treinando autoencoder...\\n";
+    await model.fit(X, X, {
+      epochs, batchSize: batch, shuffle:true,
+      callbacks:{ onEpochEnd:(e,logs)=>{ trainLog.textContent += época / - loss=\\n; } }
+    });
+    trainLog.textContent += "✅ Treino concluído. Agora clique em 'Calibrar limiar (p90)'.\\n";
+  }catch(err){ console.error(err); alert("Erro no treino: "+err.message); }
+};
+
+btnThreshold.onclick = async ()=>{
+  try{
+    if(!model||!X){ alert("Treine o modelo primeiro."); return; }
+    const Y = model.predict(X);
+    const mse = tf.tidy(()=>X.sub(Y).square().mean(1));
+    const arr = await mse.data();
+    mse.dispose(); Y.dispose();
+    const sorted = Array.from(arr).sort((a,b)=>a-b);
+    const idx = Math.floor(sorted.length*0.90);
+    th = sorted[idx];
+    trainLog.textContent += Limiar (p90): \\n;
+  }catch(err){ console.error(err); alert("Erro na calibração: "+err.message); }
+};
+
+btnScore.onclick = async ()=>{
+  try{
+    if(!model){ alert("Treine o modelo primeiro."); return; }
+    const c = parseLine(testInput.value.trim());
+    if(!c){ alert("Digite 15 números 1..25 separados por espaço."); return; }
+    const v = comboToVec(c);
+    const x = tf.tensor2d([v]);
+    const y = model.predict(x);
+    const mse = await x.sub(y).square().mean(1).data();
+    const val = mse[0];
+    x.dispose(); y.dispose();
+    scoreOut.innerHTML = rro (MSE): <b></b> + (th!==null ?  | limiar p90:  →  : '');
+  }catch(err){ console.error(err); alert("Erro ao pontuar: "+err.message); }
+};
+</script>
+</body>
+</html>
