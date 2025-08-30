@@ -1111,36 +1111,40 @@
 </script>
 <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
 <script>
-/* ===== lotoLM helper (robusto) – treina mesmo se o global for diferente e expõe diagnóstico ===== */
+/* ===== lotoLM helper (robusto v2) – diagnóstico e treino garantido ===== */
 (function(){
-  if (window.lotoLM_info) return; // evita duplicar
+  if (window.lotoLM_info) return;
   window.lotoLM_info = { ready:false, draws:0, p90:null, lastErr:null };
 
-  function toVec(draw){ const v=new Array(25).fill(0); (draw||[]).forEach(n=>{ if(n>=1&&n<=25) v[n-1]=1; }); return v; }
+  function toVec(draw){
+    const v=new Array(25).fill(0);
+    (draw||[]).forEach(n=>{ if(n>=1&&n<=25) v[n-1]=1; });
+    return v;
+  }
 
   async function robustGetDraws(){
-    // 1) nome padrão do seu dashboard
     let arr = window.appState?.data?.history?.draws;
     if (Array.isArray(arr) && arr.length>20) return arr;
-
-    // 2) outros nomes comuns
-    for (const k of ['appState2','state','dataStore','DATA','GLOBAL','DF_DATA']) {
-      const d = window[k]?.data?.history?.draws || window[k]?.history?.draws || window[k]?.draws;
+    const candidates=['appState2','state','dataStore','DATA','GLOBAL','DF_DATA'];
+    for (const k of candidates){
+      const d = (window[k]?.data?.history?.draws) || (window[k]?.history?.draws) || (window[k]?.draws);
       if (Array.isArray(d) && d.length>20) return d;
     }
-
-    // 3) fallback: lê direto do arquivo publicado (data/draws.txt)
     try{
-      const txt = await fetch('data/draws.txt?v='+Date.now()).then(r=>r.text());
-      const lines = txt.trim().split(/\r?\n/).map(l=> l.trim().split(/\s+/).map(n=>+n).filter(x=>x>=1&&x<=25));
+      const resp = await fetch('data/draws.txt?v='+Date.now());
+      const txt = await resp.text();
+      const lines = txt.trim().split(/\r?\n/)
+        .map(l=>l.trim().split(/\s+/).map(n=>+n).filter(x=>x>=1&&x<=25));
       const clean = lines.filter(a=>a.length===15);
       if (clean.length>20) return clean;
     }catch(e){}
-
     return null;
   }
 
-  async function ensureTF(){ if (window.tf) return; await new Promise((r)=>setTimeout(r,300)); }
+  async function ensureTF(){
+    if (window.tf) return;
+    await new Promise(r=>setTimeout(r,300));
+  }
 
   async function trainAE_local(draws, latent=6, epochs=40, batch=64){
     await ensureTF();
@@ -1156,10 +1160,9 @@
     const Y=AE.predict(X);
     const mse=tf.tidy(()=>X.sub(Y).square().mean(1));
     const arr=await mse.data(); mse.dispose(); Y.dispose();
-    const s=[...arr].sort((a,b)=>a-b);
-    const TH=s[Math.floor(s.length*0.90)]||0.0;
+    const sorted=[...arr].sort((a,b)=>a-b);
+    const TH=sorted[Math.floor(sorted.length*0.90)]||0.0;
 
-    // injeta um gerador ML caso o patch original não tenha entrado
     const orig = window.generateMLGame || null;
     window.generateMLGame = function(){
       try{
@@ -1175,8 +1178,10 @@
       }catch(e){ return orig?orig():[]; }
     };
 
-    window.lotoLM_info.ready=true; window.lotoLM_info.draws=draws.length; window.lotoLM_info.p90=TH;
-    console.log([lotoLM] AE treinado (helper) | draws=\ | p90=\);
+    window.lotoLM_info.ready=true;
+    window.lotoLM_info.draws=draws.length;
+    window.lotoLM_info.p90=TH;
+    console.log('[lotoLM] AE treinado (helper) | draws=' + draws.length + ' | p90=' + TH);
   }
 
   async function boot(){
@@ -1184,7 +1189,10 @@
       const draws = await robustGetDraws();
       if(!draws) throw new Error('não achei os concursos');
       await trainAE_local(draws,6,40,64);
-    }catch(e){ window.lotoLM_info.lastErr = e?.message||String(e); console.warn('[lotoLM helper]', e); }
+    }catch(e){
+      window.lotoLM_info.lastErr = (e && e.message) ? e.message : String(e);
+      console.warn('[lotoLM helper]', e);
+    }
   }
 
   window.addEventListener('load', ()=> setTimeout(boot, 800));
@@ -1192,6 +1200,7 @@
 </script>
 </body>
 </html>
+
 
 
 
