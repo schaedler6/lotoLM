@@ -1198,8 +1198,46 @@
   window.addEventListener('load', ()=> setTimeout(boot, 800));
 })();
 </script>
+<script>
+/* ===== lotoLM compat v1 — normaliza saída do gerador para a UI ===== */
+(function(){
+  function z2(n){ return String(n).padStart(2,'0'); }
+  function pickK(arr,k){ k=(k|0)||15; return (arr||[]).slice(0,k).sort((a,b)=>a-b); }
+
+  // preserva gerador corrente (que já usa o AE) e envolve com compatibilidade
+  var _prevGen = window.generateMLGame || null;
+
+  window.generateMLGame = function(k){
+    k = (k|0) || 15;
+    var res = _prevGen ? _prevGen(k) : [];
+    // Se vier um vetor de 25 itens (1..25), cortamos para K e ordenamos
+    if (Array.isArray(res)) {
+      if (res.length === 25) return pickK(res, k);
+      // Se vier mais de k (por qualquer motivo), normaliza
+      if (res.length > k) return pickK(res, k);
+      // Se vier exatamente k, só garante ordenação
+      return res.slice(0).sort((a,b)=>a-b);
+    }
+    // Se vier algo inesperado, retorna vazio para evitar quebrar UI
+    return [];
+  };
+
+  // Algumas UIs preferem texto: "01 02 ... 25"
+  window.generateMLGameString = function(k){
+    try { return (window.generateMLGame(k)||[]).map(z2).join(' '); }
+    catch(e){ return ''; }
+  };
+
+  // Exponho um helper rápido para debug no console
+  window.lotoLM_info && console.log(
+    '[lotoLM compat] ativo | draws=' + window.lotoLM_info.draws +
+    ' | ready=' + window.lotoLM_info.ready + (window.lotoLM_info.p90!=null ? (' | p90=' + window.lotoLM_info.p90) : '')
+  );
+})();
+</script>
 </body>
 </html>
+
 
 
 
