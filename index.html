@@ -1028,6 +1028,87 @@
         // Inicia a aplicação quando a página carrega
         document.addEventListener('DOMContentLoaded', initApp);
     </script>
+<script>
+/* ===== lotoLM: Autoencoder One-Class (TF.js) – treina AUTOMATICAMENTE com dados reais ===== */
+(function(){
+  function waitFor(cond, timeout=20000){
+    return new Promise((resolve,reject)=>{
+      const t0=Date.now(); const id=setInterval(()=>{
+        try{ if(cond()){ clearInterval(id); resolve(true); return; } }catch(e){}
+        if(Date.now()-t0>timeout){ clearInterval(id); reject(new Error('timeout')); }
+      }, 200);
+    });
+  }
+
+  function toVec(draw){ const v=new Array(25).fill(0); (draw||[]).forEach(n=>{ if(n>=1&&n<=25) v[n-1]=1; }); return v; }
+
+  let AE=null, TH=null, X=null;
+
+  async function trainAE(draws, latent=6, epochs=40, batch=64){
+    if(!window.tf) throw new Error('tf não carregado');
+    if(!draws || draws.length<20) throw new Error('dados insuficientes');
+    X = tf.tensor2d(draws.map(toVec));
+    const inp=tf.input({shape:[25]});
+    let x=tf.layers.dense({units:16,activation:'relu'}).apply(inp);
+    x=tf.layers.dense({units:latent,activation:'relu'}).apply(x);
+    x=tf.layers.dense({units:16,activation:'relu'}).apply(x);
+    const out=tf.layers.dense({units:25,activation:'sigmoid'}).apply(x);
+    AE=tf.model({inputs:inp,outputs:out});
+    AE.compile({optimizer:tf.train.adam(0.01),loss:'meanSquaredError'});
+    await AE.fit(X,X,{epochs,batchSize:batch,shuffle:true});
+    const Y=AE.predict(X);
+    const mse=tf.tidy(()=>X.sub(Y).square().mean(1));
+    const arr=await mse.data(); mse.dispose(); Y.dispose();
+    const s=[...arr].sort((a,b)=>a-b); TH=s[Math.floor(s.length*0.90)] || 0.0;
+    console.log('[lotoLM] AE treinado | draws=',draws.length,' | p90=',TH);
+  }
+
+  function scoreCombo(nums){
+    if(!AE) return Number.POSITIVE_INFINITY;
+    const x=tf.tensor2d([toVec(nums)]);
+    const y=AE.predict(x);
+    const mse=x.sub(y).square().mean(1).dataSync()[0];
+    x.dispose(); y.dispose();
+    return mse;
+  }
+
+  // Guardar referência do gerador atual e substituir por um que prioriza baixo MSE
+  const origGenerateMLGame = window.generateMLGame || null;
+
+  window.generateMLGame = function(){
+    try{
+      if(AE && window.appState?.data?.statistics?.frequency){
+        // tenta N amostras e pega a de menor MSE (greedy)
+        const base = [...Array(25)].map((_,i)=>i+1);
+        let best=null, bestScore=Infinity;
+        const N = 200; // explora 200 candidatos rápidos
+        for(let t=0;t<N;t++){
+          const cand = base.sort(()=>Math.random()-0.5).slice(0,15).sort((a,b)=>a-b);
+          const s = scoreCombo(cand);
+          if(s<bestScore){ bestScore=s; best=cand; }
+        }
+        if(best) return best;
+      }
+    }catch(e){ console.warn('[lotoLM] fallback do gerador:', e); }
+    return origGenerateMLGame ? origGenerateMLGame() : [];
+  };
+
+  // Espera dados reais carregarem (sua lógica já busca/extrai) e então treina
+  async function boot(){
+    try{
+      await waitFor(()=>window.appState?.data?.history?.draws?.length>20, 25000);
+      const draws = window.appState.data.history.draws;
+      await waitFor(()=>window.tf, 25000);
+      await trainAE(draws, /*latent*/6, /*epochs*/40, /*batch*/64);
+    }catch(e){
+      console.warn('[lotoLM] treino automático falhou:', e.message);
+    }
+  }
+
+  // dispara após a página terminar de montar
+  window.addEventListener('load', ()=>setTimeout(boot, 0));
+})();
+</script>
 </body>
 </html>
 
