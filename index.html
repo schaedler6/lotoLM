@@ -1358,8 +1358,137 @@
   window.addEventListener('load', ()=> setTimeout(attach, 500));
 })();
 </script>
+<script>
+/* ===== lotoLM ML-Puro hook v2 — força 15 números por jogo no DOM ===== */
+(function(){
+  function z2(n){ return String(n).padStart(2,'0'); }
+  function mkChip(n){
+    const s = document.createElement('span');
+    s.textContent = z2(n);
+    s.style.display='inline-block'; s.style.minWidth='28px';
+    s.style.textAlign='center'; s.style.margin='4px 6px 0 0';
+    s.style.padding='6px 8px'; s.style.borderRadius='999px';
+    s.style.fontWeight='600'; s.style.background='#e8f1ff';
+    s.style.border='1px solid #b9d2ff'; s.style.color='#1b4fbf';
+    return s;
+  }
+  function pickK(arr,k){ k=(k|0)||15; return (arr||[]).slice(0,k).sort((a,b)=>a-b); }
+
+  // Garante existência do gerador ML (o helper do AE já o definiu).
+  if (typeof window.generateMLGame !== 'function') {
+    window.generateMLGame = function(k){ return []; };
+  }
+
+  function findGenerateButton(){
+    // Pega o 1º botão cujo texto contém "Gerar Jogos"
+    const btns = Array.from(document.querySelectorAll('button'));
+    return btns.find(b => /Gerar\s+Jogos/i.test(b.textContent||''));
+  }
+
+  function findStrategySelect(around){
+    // procura um <select> perto do botão cujo option selecionado contém "ML Puro"
+    let root = around;
+    for(let i=0;i<4 && root; i++) root = root.parentElement || root;
+    const scope = root || document;
+    const sels = Array.from(scope.querySelectorAll('select'));
+    const sel = sels.find(s => {
+      const opt = s.selectedOptions && s.selectedOptions[0];
+      const label = (opt?.text || s.value || '').toString();
+      return /ML\s*Puro/i.test(label);
+    });
+    return {selML: sel, allSelects: sels};
+  }
+
+  function findJobsContainer(){
+    // tenta achar o bloco que contém a lista "Jogos Gerados"
+    // procura por um elemento que tenha o texto "Jogos Gerados"
+    const nodes = Array.from(document.querySelectorAll('section,div,main,article'));
+    const sec = nodes.find(el => /Jogos\s+Gerados/i.test(el.textContent||''));
+    if (!sec) return null;
+
+    // procura dentro dele as linhas "Jogo X:"; se não existir, cria um container próprio
+    const listWrap = sec.querySelector('.lmlpuro-wrap');
+    if (listWrap) return listWrap;
+
+    const wrap = document.createElement('div');
+    wrap.className = 'lmlpuro-wrap';
+    wrap.style.marginTop = '8px';
+    sec.appendChild(wrap);
+    return wrap;
+  }
+
+  function renderGames(container, games){
+    container.innerHTML = '';
+    games.forEach((g,i)=>{
+      const row = document.createElement('div');
+      row.style.background = '#f8fafc';
+      row.style.borderRadius = '8px';
+      row.style.padding = '10px 12px';
+      row.style.margin = '8px 0';
+      const title = document.createElement('div');
+      title.style.fontWeight = '700';
+      title.style.marginBottom = '6px';
+      title.textContent = 'Jogo ' + (i+1) + ':';
+      row.appendChild(title);
+      const chips = document.createElement('div');
+      (g||[]).forEach(n => chips.appendChild(mkChip(n)));
+      row.appendChild(chips);
+      container.appendChild(row);
+    });
+  }
+
+  function batch(n){
+    n = (parseInt(n)||5);
+    const out=[];
+    for(let i=0;i<n;i++){
+      let g = [];
+      try{ g = window.generateMLGame ? window.generateMLGame(15) : []; }
+      catch(e){ g = []; }
+      if (typeof g === 'number') g = [g];           // se voltar número, normaliza
+      if (!Array.isArray(g)) g = [];                // segurança
+      out.push(pickK(g,15));
+    }
+    return out;
+  }
+
+  function attach(){
+    const btn = findGenerateButton();
+    if (!btn) return;
+
+    // Evita duplicar hook
+    if (btn._lotoLM_mlPuro) return;
+    btn._lotoLM_mlPuro = true;
+
+    btn.addEventListener('click', function(ev){
+      try{
+        const {selML} = findStrategySelect(btn);
+        // Se a estratégia selecionada não for "ML Puro", não fazemos nada.
+        if (!selML) return;
+
+        // Intercepta e substitui o resultado por 15 números
+        ev.preventDefault(); ev.stopImmediatePropagation();
+        const qtdSelect = document.querySelector('select'); // 1º select é a quantidade no seu layout
+        const qtd = (qtdSelect?.value)||5;
+        const games = batch(qtd);
+        const cont  = findJobsContainer();
+        if (cont) renderGames(cont, games);
+        console.log('[lotoLM] ML Puro v2 ->', games);
+      }catch(e){
+        console.warn('[lotoLM] ML Puro hook v2 falhou:', e);
+      }
+    }, true); // captura antes do handler original
+  }
+
+  // Também observamos alterações no DOM: se a UI original desenhar "25",
+  // reescrevemos logo em seguida com 15 números quando ML Puro estiver ativo.
+  const mo = new MutationObserver(()=>attach());
+  mo.observe(document.documentElement, {childList:true,subtree:true});
+  window.addEventListener('load', ()=> setTimeout(attach, 400));
+})();
+</script>
 </body>
 </html>
+
 
 
 
