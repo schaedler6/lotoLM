@@ -24,6 +24,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
 </head>
 <body>
+<<<<<<< HEAD
 <header><h1>🧠 lotoLM — Autoencoder One-Class (treina só com dados reais)</h1></header>
 <main class="wrap">
 
@@ -33,6 +34,23 @@
     <textarea id="hist" rows="12" placeholder="Cole aqui..."></textarea>
     <div class="grid2">
       <div><button id="btnSeed">Carregar exemplo</button></div>
+=======
+<header><h1>🧠 lotoLM — Autoencoder One-Class (dados reais automáticos)</h1></header>
+<main class="wrap">
+
+  <section class="card">
+    <h2>1) Concursos reais</h2>
+    <p class="small">
+      O site tenta carregar <code>data/draws.txt</code> automaticamente (uma linha por concurso, 15 números 1–25).
+      Você pode editar manualmente e clicar em <b>Validar & Preparar</b>.
+    </p>
+    <textarea id="hist" rows="12" placeholder="01 02 03 05 07 09 10 12 13 15 18 20 21 23 25"></textarea>
+    <div class="grid2">
+      <div>
+        <button id="btnAuto">🔄 Recarregar do repositório</button>
+        <button id="btnSeed">Carregar exemplo</button>
+      </div>
+>>>>>>> 0153373 (feat: index com auto-carregamento + workflow de atualização diária)
       <div style="text-align:right"><button id="btnParse">Validar & Preparar</button></div>
     </div>
     <div id="info" class="small mono"></div>
@@ -41,6 +59,7 @@
   <section class="card">
     <h2>2) Treinar autoencoder</h2>
     <div class="row col3">
+<<<<<<< HEAD
       <div>
         <label>Épocas:</label>
         <input id="epochs" type="number" value="40" min="5" max="500">
@@ -53,6 +72,11 @@
         <label>Dimensão latente:</label>
         <input id="latent" type="number" value="6" min="2" max="20">
       </div>
+=======
+      <div><label>Épocas:</label> <input id="epochs" type="number" value="40" min="5" max="500"></div>
+      <div><label>Batch size:</label> <input id="batch" type="number" value="64" min="16" max="1024"></div>
+      <div><label>Dimensão latente:</label> <input id="latent" type="number" value="6" min="2" max="20"></div>
+>>>>>>> 0153373 (feat: index com auto-carregamento + workflow de atualização diária)
     </div>
     <div class="grid2">
       <button id="btnTrain">Treinar</button>
@@ -63,19 +87,33 @@
 
   <section class="card">
     <h2>3) Pontuar combinação</h2>
+<<<<<<< HEAD
     <input id="testInput" placeholder="Ex.: 01 02 03 05 07 09 10 12 13 15 18 20 21 23 25">
+=======
+    <input id="testInput" placeholder="01 02 03 05 07 09 10 12 13 15 18 20 21 23 25">
+>>>>>>> 0153373 (feat: index com auto-carregamento + workflow de atualização diária)
     <div class="grid2" style="margin-top:8px">
       <button id="btnScore">Pontuar</button>
       <div style="text-align:right"><span id="scoreOut" class="mono"></span></div>
     </div>
+<<<<<<< HEAD
     <p class="small">O <b>erro de reconstrução</b> (MSE) indica o quão “parecida” a combinação é com o histórico. <b>Menor = mais parecido</b>. Não é previsão.</p>
+=======
+    <p class="small">Erro de reconstrução (MSE) — menor = mais parecido com o histórico. Não é previsão.</p>
+>>>>>>> 0153373 (feat: index com auto-carregamento + workflow de atualização diária)
   </section>
 
 </main>
 
 <script>
+<<<<<<< HEAD
 // ======= Parsing =======
 const histTA = document.getElementById('hist');
+=======
+// ======= UI refs =======
+const histTA = document.getElementById('hist');
+const btnAuto = document.getElementById('btnAuto');
+>>>>>>> 0153373 (feat: index com auto-carregamento + workflow de atualização diária)
 const btnSeed = document.getElementById('btnSeed');
 const btnParse = document.getElementById('btnParse');
 const info = document.getElementById('info');
@@ -89,9 +127,13 @@ const testInput = document.getElementById('testInput');
 const btnScore = document.getElementById('btnScore');
 const scoreOut = document.getElementById('scoreOut');
 
+<<<<<<< HEAD
 let X = null;        // tensor  [N,25]
 let model = null;    // autoencoder
 let th = null;       // threshold (p90)
+=======
+let X=null, model=null, th=null;
+>>>>>>> 0153373 (feat: index com auto-carregamento + workflow de atualização diária)
 
 const sample = [
 "01 02 03 05 07 09 10 12 13 15 18 20 21 23 25",
@@ -104,18 +146,44 @@ const sample = [
 "01 03 05 06 08 09 10 12 14 15 17 19 20 23 25",
 "02 04 05 07 09 11 12 14 15 16 18 19 21 22 24",
 "01 02 03 04 06 07 10 12 13 15 17 18 20 22 25"
+<<<<<<< HEAD
 ].join("\\n");
 
 btnSeed.onclick = () => { histTA.value = sample; };
 
 function parseLine(s){
   const parts = s.trim().split(/\\s+/).filter(Boolean);
+=======
+].join("\n");
+
+btnSeed.onclick = ()=>{ histTA.value = sample; };
+
+async function loadDrawsTxt(){
+  try{
+    const res = await fetch('data/draws.txt', {cache:'no-store'});
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const txt = await res.text();
+    histTA.value = txt.trim();
+    info.textContent = "Dados carregados automaticamente de data/draws.txt";
+  }catch(e){
+    info.textContent = "Não foi possível carregar data/draws.txt automaticamente.";
+    console.warn(e);
+  }
+}
+btnAuto.onclick = loadDrawsTxt;
+window.addEventListener('load', loadDrawsTxt);
+
+// ======= Parsing & features =======
+function parseLine(s){
+  const parts = s.trim().split(/\s+/).filter(Boolean);
+>>>>>>> 0153373 (feat: index com auto-carregamento + workflow de atualização diária)
   if(parts.length!==15) return null;
   const nums = parts.map(x=>parseInt(x,10)).filter(n=>Number.isInteger(n)&&n>=1&&n<=25);
   if(nums.length!==15) return null;
   const set = Array.from(new Set(nums)).sort((a,b)=>a-b);
   return set.length===15 ? set : null;
 }
+<<<<<<< HEAD
 function comboToVec(c){
   const v = new Array(25).fill(0);
   for(const n of c) v[n-1]=1;
@@ -197,6 +265,60 @@ btnScore.onclick = async ()=>{
     x.dispose(); y.dispose();
     scoreOut.innerHTML = rro (MSE): <b></b> + (th!==null ?  | limiar p90:  →  : '');
   }catch(err){ console.error(err); alert("Erro ao pontuar: "+err.message); }
+=======
+function comboToVec(c){ const v=new Array(25).fill(0); for(const n of c) v[n-1]=1; return v; }
+
+btnParse.onclick = ()=>{
+  const lines = histTA.value.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+  const combos=[];
+  for(const ln of lines){ const c=parseLine(ln); if(!c){ alert("Linha inválida: "+ln); return; } combos.push(c); }
+  if(combos.length<20){ alert("Pelo menos 20 concursos são recomendados."); return; }
+  const mat = combos.map(comboToVec);
+  if(X) X.dispose();
+  X = tf.tensor2d(mat);
+  info.textContent = "Concursos carregados: "+combos.length+" | Tensor: "+X.shape;
+  trainLog.textContent=""; scoreOut.textContent="";
+};
+
+function buildAutoencoder(latent=6){
+  const inp=tf.input({shape:[25]});
+  let x=tf.layers.dense({units:16,activation:'relu'}).apply(inp);
+  x=tf.layers.dense({units:latent,activation:'relu'}).apply(x);
+  x=tf.layers.dense({units:16,activation:'relu'}).apply(x);
+  const out=tf.layers.dense({units:25,activation:'sigmoid'}).apply(x);
+  const m=tf.model({inputs:inp,outputs:out});
+  m.compile({optimizer:tf.train.adam(0.01),loss:'meanSquaredError'}); return m;
+}
+
+btnTrain.onclick = async ()=>{
+  if(!X){ alert("Carregue/valide os concursos primeiro."); return; }
+  const epochs=Math.max(5,Math.min(500,parseInt(epochsEl.value,10)||40));
+  const batch =Math.max(16,Math.min(1024,parseInt(batchEl.value,10)||64));
+  const latent=Math.max(2,Math.min(20,parseInt(latentEl.value,10)||6));
+  if(model){ model.dispose(); model=null; }
+  model=buildAutoencoder(latent);
+  trainLog.textContent="Treinando...\n";
+  await model.fit(X,X,{epochs,batchSize:batch,shuffle:true,callbacks:{onEpochEnd:(e,l)=>{trainLog.textContent+=época / - loss=\n;}}});
+  trainLog.textContent+="✅ Treino concluído. Calibre o limiar.\n";
+};
+
+btnThreshold.onclick = async ()=>{
+  if(!model||!X){ alert("Treine o modelo primeiro."); return; }
+  const Y=model.predict(X);
+  const mse=tf.tidy(()=>X.sub(Y).square().mean(1));
+  const arr=await mse.data(); mse.dispose(); Y.dispose();
+  const sorted=[...arr].sort((a,b)=>a-b), idx=Math.floor(sorted.length*0.90);
+  th=sorted[idx];
+  trainLog.textContent+=Limiar (p90): \n;
+};
+
+btnScore.onclick = async ()=>{
+  if(!model){ alert("Treine o modelo primeiro."); return; }
+  const c=parseLine(testInput.value.trim()); if(!c){ alert("Digite 15 números 1..25."); return; }
+  const v=comboToVec(c); const x=tf.tensor2d([v]); const y=model.predict(x);
+  const mse=(await x.sub(y).square().mean(1).data())[0]; x.dispose(); y.dispose();
+  scoreOut.innerHTML = rro (MSE): <b></b> + (th!=null? | limiar p90:  → :'');
+>>>>>>> 0153373 (feat: index com auto-carregamento + workflow de atualização diária)
 };
 </script>
 </body>
