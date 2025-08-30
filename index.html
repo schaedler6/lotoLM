@@ -1235,8 +1235,132 @@
   );
 })();
 </script>
+<script>
+/* ===== lotoLM ML-Puro hook — garante 15 números por jogo quando a estratégia for "ML Puro" ===== */
+(function(){
+  function z2(n){ return String(n).padStart(2,'0'); }
+  // Garante que existe um gerador ML que retorna array de 15 números
+  if (typeof window.generateMLGame !== 'function') {
+    window.generateMLGame = function(k){ return []; };
+  }
+
+  function findGeneratorSection(){
+    // Procura a seção que contém o título "Gerador de Jogos Inteligente"
+    const all = Array.from(document.querySelectorAll('section,div,main,article'));
+    return all.find(el => /Gerador\s+de\s+Jogos\s+Inteligente/i.test(el.textContent||''));
+  }
+
+  function getControls(sec){
+    if(!sec) return {};
+    const btn = Array.from(sec.querySelectorAll('button')).find(b=>/Gerar\s+Jogos/i.test(b.textContent||''));
+    const selects = Array.from(sec.querySelectorAll('select'));
+    // convenção visual do seu dashboard: [qtd, estratégia, temperatura]
+    const selQtd  = selects[0] || null;
+    const selEstr = selects[1] || null;
+    return {btn, selQtd, selEstr};
+  }
+
+  function ensureOutputBox(sec){
+    // cria um container discreto dentro da área "Jogos Gerados:"
+    if (sec.querySelector('#ml-puro-out')) return sec.querySelector('#ml-puro-out');
+    // acha o bloco de "Jogos Gerados:"
+    let anchor = Array.from(sec.querySelectorAll('h3, h4, strong, b, p, div'))
+      .find(n=>/Jogos\s+Gerados/i.test(n.textContent||''));
+    if(!anchor) anchor = sec; // fallback
+    const box = document.createElement('div');
+    box.id = 'ml-puro-out';
+    box.style.marginTop = '8px';
+    box.style.padding = '10px';
+    box.style.background = 'transparent';
+    anchor.parentNode.insertBefore(box, anchor.nextSibling);
+    return box;
+  }
+
+  function chip(n){
+    const s = document.createElement('span');
+    s.textContent = z2(n);
+    s.style.display = 'inline-block';
+    s.style.minWidth = '28px';
+    s.style.textAlign = 'center';
+    s.style.margin = '4px 6px 0 0';
+    s.style.padding = '6px 8px';
+    s.style.borderRadius = '999px';
+    s.style.fontWeight = '600';
+    s.style.background = '#e8f1ff';
+    s.style.border = '1px solid #b9d2ff';
+    s.style.color = '#1b4fbf';
+    return s;
+  }
+
+  function renderGames(box, games){
+    box.innerHTML = '';
+    games.forEach((g,i)=>{
+      const row = document.createElement('div');
+      row.style.background = '#f8fafc';
+      row.style.borderRadius = '8px';
+      row.style.padding = '10px 12px';
+      row.style.margin = '8px 0';
+      const title = document.createElement('div');
+      title.style.fontWeight = '700';
+      title.style.marginBottom = '6px';
+      title.textContent = 'Jogo ' + (i+1) + ':';
+      row.appendChild(title);
+      const wrap = document.createElement('div');
+      (g||[]).forEach(n=>wrap.appendChild(chip(n)));
+      row.appendChild(wrap);
+      box.appendChild(row);
+    });
+  }
+
+  function generateBatch(n){
+    n = (parseInt(n)||5);
+    const out=[];
+    for(let i=0;i<n;i++){
+      const g = window.generateMLGame ? window.generateMLGame(15) : [];
+      // normaliza: 15 números ordenados
+      const sorted = Array.isArray(g) ? g.slice(0,15).sort((a,b)=>a-b) : [];
+      out.push(sorted);
+    }
+    return out;
+  }
+
+  function isMLPuro(sel){
+    if(!sel) return false;
+    const label = sel.selectedOptions?.[0]?.text || sel.value || '';
+    return /ML\s*Puro/i.test(label);
+  }
+
+  function attach(){
+    const sec = findGeneratorSection();
+    const {btn, selQtd, selEstr} = getControls(sec);
+    if(!sec || !btn || !selQtd || !selEstr) return;
+
+    // Evita duplicar
+    if (btn._lotoLM_hooked) return;
+    btn._lotoLM_hooked = true;
+
+    btn.addEventListener('click', function(e){
+      try{
+        if (!isMLPuro(selEstr)) return; // deixa estratégias originais seguirem fluxo padrão
+        // Força geração ML com 15 números por jogo
+        e.preventDefault(); e.stopImmediatePropagation();
+        const box = ensureOutputBox(sec);
+        const qtd = selQtd.value || 5;
+        const games = generateBatch(qtd);
+        renderGames(box, games);
+        console.log('[lotoLM] ML Puro: gerados', games.length, 'jogos.');
+      }catch(err){
+        console.warn('[lotoLM] hook ML Puro falhou:', err);
+      }
+    }, true); // captura cedo, antes do handler original
+  }
+
+  window.addEventListener('load', ()=> setTimeout(attach, 500));
+})();
+</script>
 </body>
 </html>
+
 
 
 
